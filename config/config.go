@@ -195,13 +195,106 @@ func (g *GlobalConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // TargetConfig defines a DSN and a set of collectors to be executed on it.
 type TargetConfig struct {
-	DSN           Secret   `yaml:"data_source_name"` // data source name to connect to
-	CollectorRefs []string `yaml:"collectors"`       // names of collectors to execute on the target
+	DSN           *DataSource `yaml:"data_source"` // data source definition struct
+	CollectorRefs []string    `yaml:"collectors"`  // names of collectors to execute on the target
 
 	collectors []*CollectorConfig // resolved collector references
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
+}
+
+// Datasource defines a set of components to construct a DSN.
+type DataSource struct {
+	DBType       string `yaml:"type"` //`tags` used to identify internal element
+	Host         string `yaml:"host,omitempty"`
+	Port         int    `yaml:"port,omitempty"`
+	Instance     string `yaml:"instance,omitempty"`
+	DBName       string `yaml:"dbname,omitempty"`
+	Role         string `yaml:"role,omitempty"`
+	Warehouse    string `yaml:"warehouse,omitempty"`
+	Account      string `yaml:"account,omitempty"`
+	MachineStore bool   `yaml:"use_credential_store"`
+	Param        string `yaml:"parameters,omitempty"`
+	CredName     string `yaml:"credential_store_name,omitempty"`
+	User         string `yaml:"user,omitempty"`
+	Password     string `yaml:"password,omitempty"`
+}
+
+//assemble connection string for target to feed into existing driver method
+func assemble_connectionstring(DBType string, Host string, Port int, Instance string, Account string, Role string, Warehouse string, DBName string, Param string, User string, Password string) string {
+	switch DBType {
+	case "sqlserver":
+		fmt.Println("Datasource is of type: sqlserver")
+		if Param != "" {
+			conString := "sqlserver://" + User + ":" + Password + "@" + Host + ":" + fmt.Sprint(Port) + "/" + Instance + "?param=" + Param
+			return conString
+		} else {
+			conString := "sqlserver://" + User + ":" + Password + "@" + Host + ":" + fmt.Sprint(Port) + "/" + Instance
+			return conString
+		}
+	case "mysql":
+		fmt.Println("Datasource is of type: mysql")
+		if Param != "" {
+			conString := "mysql://" + User + ":" + Password + "@" + Host + ":" + fmt.Sprint(Port) + "/" + DBName + "?param=" + Param
+			return conString
+		} else {
+			conString := "mysql://" + User + ":" + Password + "@" + Host + ":" + fmt.Sprint(Port) + "/" + DBName
+			return conString
+		}
+	case "postgresql_libpq":
+		fmt.Println("Datasource is of type: postgresql_libpq")
+		if Param != "" {
+			conString := "postgres://" + User + ":" + Password + "@" + Host + ":" + fmt.Sprint(Port) + "/" + DBName + "?param=" + Param
+			return conString
+		} else {
+			conString := "postgres://" + User + ":" + Password + "@" + Host + ":" + fmt.Sprint(Port) + "/" + DBName
+			return conString
+		}
+	case "postgresql_pgx":
+		fmt.Println("Datasource is of type: postgresql_libpq")
+		if Param != "" {
+			conString := "pgx://" + User + ":" + Password + "@" + Host + ":" + fmt.Sprint(Port) + "/" + DBName + "?param=" + Param
+			return conString
+		} else {
+			conString := "pgx://" + User + ":" + Password + "@" + Host + ":" + fmt.Sprint(Port) + "/" + DBName
+			return conString
+		}
+	case "clickhouse":
+		fmt.Println("Datasource is of type: clickhouse")
+		if Param != "" {
+			conString := "clickhouse://" + Host + ":" + fmt.Sprint(Port) + "?username=" + User + "&password=" + Password + "&database=" + DBName + "&param=" + Param
+			return conString
+		} else {
+			conString := "clickhouse://" + Host + ":" + fmt.Sprint(Port) + "?username=" + User + "&password=" + Password + "&database=" + DBName
+			return conString
+		}
+	case "snowflake":
+		fmt.Println("Datasource is of type: snowflake")
+		if Param != "" {
+			conString := "snowflake://" + User + ":" + Password + "@" + Account + "/" + DBName + "?role=" + Role + "&warehouse=" + Warehouse + "&param=" + Param
+			return conString
+		} else {
+			conString := "snowflake://" + User + ":" + Password + "@" + Account + "/" + DBName + "?role=" + Role + "&warehouse=" + Warehouse
+			return conString
+		}
+	case "vertica":
+		fmt.Println("Datasource is of type: vertica")
+		if Param != "" {
+			conString := "vertica://" + User + ":" + Password + "@" + Host + ":" + fmt.Sprint(Port) + "/" + DBName + "?param=" + Param
+			return conString
+		} else {
+			conString := "vertica://" + User + ":" + Password + "@" + Host + ":" + fmt.Sprint(Port) + "/" + DBName
+			return conString
+		}
+	}
+	return ""
+}
+
+//Windows credential store interaction
+type credential struct {
+	username string
+	password []byte
 }
 
 // Collectors returns the collectors referenced by the target, resolved.
