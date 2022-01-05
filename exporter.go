@@ -20,7 +20,7 @@ const envDsnOverride = "SQLEXPORTER_TARGET_DSN"
 var dsnOverride = flag.String("config.data-source-name", "", "Data source name to override the value in the configuration file with.")
 
 //assemble connection string for target to feed into existing driver method
-func assemble_connectionstring(d DataSource) string {
+func assemble_connectionstring(d config.DataSource) string {
 	switch d.DBType {
 	case "sqlserver":
 		fmt.Println("Datasource is of type: sqlserver")
