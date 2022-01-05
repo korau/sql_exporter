@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/burningalchemist/sql_exporter/config"
+	"github.com/danieljoos/wincred"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"google.golang.org/protobuf/proto"
@@ -17,6 +18,82 @@ import (
 const envDsnOverride = "SQLEXPORTER_TARGET_DSN"
 
 var dsnOverride = flag.String("config.data-source-name", "", "Data source name to override the value in the configuration file with.")
+
+//assemble connection string for target to feed into existing driver method
+func assemble_connectionstring(d DataSource) string {
+	switch d.DBType {
+	case "sqlserver":
+		fmt.Println("Datasource is of type: sqlserver")
+		if d.Param != "" {
+			conString := "sqlserver://" + d.User + ":" + d.Password + "@" + d.Host + ":" + fmt.Sprint(d.Port) + "/" + d.Instance + "?param=" + d.Param
+			return conString
+		} else {
+			conString := "sqlserver://" + d.User + ":" + d.Password + "@" + d.Host + ":" + fmt.Sprint(d.Port) + "/" + d.Instance
+			return conString
+		}
+	case "mysql":
+		fmt.Println("Datasource is of type: mysql")
+		if d.Param != "" {
+			conString := "mysql://" + d.User + ":" + d.Password + "@" + d.Host + ":" + fmt.Sprint(d.Port) + "/" + d.DBName + "?param=" + d.Param
+			return conString
+		} else {
+			conString := "mysql://" + d.User + ":" + d.Password + "@" + d.Host + ":" + fmt.Sprint(d.Port) + "/" + d.DBName
+			return conString
+		}
+	case "postgresql_libpq":
+		fmt.Println("Datasource is of type: postgresql_libpq")
+		if d.Param != "" {
+			conString := "postgres://" + d.User + ":" + d.Password + "@" + d.Host + ":" + fmt.Sprint(d.Port) + "/" + d.DBName + "?param=" + d.Param
+			return conString
+		} else {
+			conString := "postgres://" + d.User + ":" + d.Password + "@" + d.Host + ":" + fmt.Sprint(d.Port) + "/" + d.DBName
+			return conString
+		}
+	case "postgresql_pgx":
+		fmt.Println("Datasource is of type: postgresql_libpq")
+		if d.Param != "" {
+			conString := "pgx://" + d.User + ":" + d.Password + "@" + d.Host + ":" + fmt.Sprint(d.Port) + "/" + d.DBName + "?param=" + d.Param
+			return conString
+		} else {
+			conString := "pgx://" + d.User + ":" + d.Password + "@" + d.Host + ":" + fmt.Sprint(d.Port) + "/" + d.DBName
+			return conString
+		}
+	case "clickhouse":
+		fmt.Println("Datasource is of type: clickhouse")
+		if d.Param != "" {
+			conString := "clickhouse://" + d.Host + ":" + fmt.Sprint(d.Port) + "?username=" + d.User + "&password=" + d.Password + "&database=" + d.DBName + "&param=" + d.Param
+			return conString
+		} else {
+			conString := "clickhouse://" + d.Host + ":" + fmt.Sprint(d.Port) + "?username=" + d.User + "&password=" + d.Password + "&database=" + d.DBName
+			return conString
+		}
+	case "snowflake":
+		fmt.Println("Datasource is of type: snowflake")
+		if d.Param != "" {
+			conString := "snowflake://" + d.User + ":" + d.Password + "@" + d.Account + "/" + d.DBName + "?role=" + d.Role + "&warehouse=" + d.Warehouse + "&param=" + d.Param
+			return conString
+		} else {
+			conString := "snowflake://" + d.User + ":" + d.Password + "@" + d.Account + "/" + d.DBName + "?role=" + d.Role + "&warehouse=" + d.Warehouse
+			return conString
+		}
+	case "vertica":
+		fmt.Println("Datasource is of type: vertica")
+		if d.Param != "" {
+			conString := "vertica://" + d.User + ":" + d.Password + "@" + d.Host + ":" + fmt.Sprint(d.Port) + "/" + d.DBName + "?param=" + d.Param
+			return conString
+		} else {
+			conString := "vertica://" + d.User + ":" + d.Password + "@" + d.Host + ":" + fmt.Sprint(d.Port) + "/" + d.DBName
+			return conString
+		}
+	}
+	return ""
+}
+
+//Windows credential store interaction
+type credential struct {
+	username string
+	password []byte
+}
 
 // Exporter is a prometheus.Gatherer that gathers SQL metrics from targets and merges them with the default registry.
 type Exporter interface {
@@ -52,6 +129,30 @@ func NewExporter(configFile string) (Exporter, error) {
 			return nil, fmt.Errorf("the config.data-source-name flag (value %q) only applies in single target mode", *dsnOverride)
 		}
 		c.Target.DSN = config.Secret(*dsnOverride)
+	}
+
+	// Generate DSN from data source fields.
+	if c.Target.DataSource.MachineStore == true {
+		cred, err := wincred.GetGenericCredential(c.Target.DataSource.CredName)
+		if err != nil {
+			return nil, fmt.Errorf("The credential (value %q) cannot be accessed", c.Target.DataSource.CredName)
+		}
+		c.Target.DataSource.User = string(cred.UserName)
+		c.Target.DataSource.Password = string(cred.CredentialBlob)
+		conString := assemble_connectionstring(c.Target.DataSource)
+		c.Target.DSN = config.Secret(conString)
+	} else {
+		if c.Target.DataSource.User != "" {
+			if c.Target.DataSource.Password != "" {
+				conString := assemble_connectionstring(c.Target.DataSource)
+				c.Target.DSN = config.Secret(conString)
+
+			} else {
+				return nil, fmt.Errorf("The password cannot be empty when use_credential_store is set to false")
+			}
+		} else {
+			return nil, fmt.Errorf("The user field cannot be empty when use_credential_store is set to false")
+		}
 	}
 
 	var targets []Target
