@@ -235,8 +235,8 @@ func (t *TargetConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	// Check required fields
-	if t.DSN == "" {
-		return fmt.Errorf("missing data_source_name for target %+v", t)
+	if t.DataSource.DBType == "" {
+		return fmt.Errorf("Datasource DBType not specified for target %+v", t)
 	}
 	if err := checkCollectorRefs(t.CollectorRefs, "target"); err != nil {
 		return err
