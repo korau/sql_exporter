@@ -19,6 +19,10 @@ Per the Prometheus philosophy, scrapes are synchronous (metrics are collected on
 keep load at reasonable levels, minimum collection intervals may optionally be set per collector, producing cached
 metrics when queried more frequently than the configured interval.
 
+This Fork is exclusively for use on Windows platforms as it has been customized to support the use of credentials within
+the windows credential store (Generic Credentials) in instances where storing plain text credentials within a DSN string
+is not viable.
+
 ## Usage
 
 Get Prometheus SQL Exporter, either as a [packaged release](https://github.com/burningalchemist/sql_exporter/releases/latest), as a [Docker image](https://hub.docker.com/r/burningalchemist/sql_exporter) or
@@ -105,9 +109,24 @@ global:
 
 # The target to monitor and the list of collectors to execute on it.
 target:
-  # Data source name always has a URI schema that matches the driver name. In some cases (e.g. MySQL)
-  # the schema gets dropped or replaced to match the driver expected DSN format.
-  data_source_name: 'sqlserver://prom_user:prom_password@dbserver1.example.com:1433'
+  # Data source is made up of a series of fields that can be populated as required depending on the source
+  # The use_credential_store boolean will access the generic credential stored under the valud provided to
+  # the credential_store_name field.  Of all fields available all are considered optional with the exception
+  # of type which must be set to specify the data source type and the use_credential_store field.  This means
+  # that you need only specify the fields required to construct a valid DSN for your data source.
+  data_source: 
+    type: 'sqlserver' #mysql,sqlserver,postgresql_libpq,postgresql_pgx,clickhouse,snowflake,vertica
+    host: 'dbserver1.example.com'
+    port: 1433
+    instance: 'SQL01'
+    account: ''
+    role: ''
+    warehouse: ''
+    use_credential_store: true
+    credential_store_name: 'test_store'
+    parameters: 'InitialCatalog=testdb'
+    user: ''
+    password: ''
 
   # Collectors (referenced by name) to execute on the target.
   collectors: [pricing_data_freshness]

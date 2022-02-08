@@ -195,13 +195,31 @@ func (g *GlobalConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 
 // TargetConfig defines a DSN and a set of collectors to be executed on it.
 type TargetConfig struct {
-	DSN           Secret   `yaml:"data_source_name"` // data source name to connect to
-	CollectorRefs []string `yaml:"collectors"`       // names of collectors to execute on the target
+	DataSource    *DataSource `yaml:"data_source"` // data source definition struct
+	DSN           Secret      //`yaml:"data_source"` data source definition struct
+	CollectorRefs []string    `yaml:"collectors"` // names of collectors to execute on the target
 
 	collectors []*CollectorConfig // resolved collector references
 
 	// Catches all undefined fields and must be empty after parsing.
 	XXX map[string]interface{} `yaml:",inline" json:"-"`
+}
+
+// Datasource defines a set of components to construct a DSN.
+type DataSource struct {
+	DBType       string `yaml:"type"` //`tags` used to identify internal element
+	Host         string `yaml:"host,omitempty"`
+	Port         int    `yaml:"port,omitempty"`
+	Instance     string `yaml:"instance,omitempty"`
+	DBName       string `yaml:"dbname,omitempty"`
+	Role         string `yaml:"role,omitempty"`
+	Warehouse    string `yaml:"warehouse,omitempty"`
+	Account      string `yaml:"account,omitempty"`
+	MachineStore bool   `yaml:"use_credential_store"`
+	Param        string `yaml:"parameters,omitempty"`
+	CredName     string `yaml:"credential_store_name,omitempty"`
+	User         string `yaml:"user,omitempty"`
+	Password     string `yaml:"password,omitempty"`
 }
 
 // Collectors returns the collectors referenced by the target, resolved.
@@ -217,8 +235,8 @@ func (t *TargetConfig) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	// Check required fields
-	if t.DSN == "" {
-		return fmt.Errorf("missing data_source_name for target %+v", t)
+	if t.DataSource.DBType == "" {
+		return fmt.Errorf("Datasource DBType not specified for target %+v", t)
 	}
 	if err := checkCollectorRefs(t.CollectorRefs, "target"); err != nil {
 		return err
